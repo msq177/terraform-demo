@@ -7,3 +7,5 @@ zone_id     = "cn-beijing-a"
 
 instance_name_prefix = "tf-test-ecs-"
 image_id             = "image-ybqi99s7yq8rx7mnk44b"
+instance_type        = "ecs.g3i.xlarge"
+password             = "Password@123"
