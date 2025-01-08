@@ -1,0 +1,51 @@
+name: Apply
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+
+jobs:
+  build:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      VOLCENGINE_ACCESS_KEY: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
+      VOLCENGINE_SECRET_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hashicorp/setup-terraform@v2
+
+      - name: terraform init
+        id: init
+        working-directory: regions/${{ github.head_ref	}}
+        run: terraform init -backend-config="backend.hcl"
+
+      - name: terraform apply
+        working-directory: regions/${{ github.head_ref }}
+        run: |
+          dir_count=`ls -l | grep "^d" | wc -l`
+          if [ $dir_count -gt 0 ]; then
+            for dir in ./*/
+            do
+              env=${dir%*/}
+              env=${env#*/}
+              echo ""
+              echo "========> Terraform Apply <========"
+              echo "At region: ${{ github.head_ref	}}"
+              echo "At workspace: ${env}"
+              echo "=================================="
+              
+              terraform workspace select ${env} || terraform workspace new ${env}
+              terraform apply -auto-approve
+            done
+          else
+            terraform apply -auto-approve
+          fi  
+      

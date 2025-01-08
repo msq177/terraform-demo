@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VOLCENGINE_ACCESS_KEY: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
+      VOLCENGINE_SECRET_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.VOLCENGINE_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.VOLCENGINE_SECRET_KEY }}
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+      
+      - name: check env
+        run: |
+          if [ ! -d "regions/$GITHUB_HEAD_REF" ]; then
+            echo "*************************SKIPPING************************************"
+            echo "Branch '$GITHUB_HEAD_REF' does not match an online region."
+            echo "*********************************************************************"
+            exit 1
+          fi
+      
+      - name: terraform fmt
+        id: fmt
+        run: terraform fmt -recursive -check
+
+      - name: terraform init
+        id: init
+        working-directory: regions/${{ github.head_ref	}}
+        run: terraform init -backend-config="backend.hcl"
+
+      - name: terraform validate
+        id: validate
+        working-directory: regions/${{ github.head_ref	}}
+        run: terraform validate
+          
+      - name: terraform plan
+        id: plan
+        if: github.event_name == 'pull_request'
+        working-directory: regions/${{ github.head_ref	}}
+        run: |
+          plan_info=""
+          dir_count=`ls -l | grep "^d" | wc -l`
+          if [ $dir_count -gt 0 ]; then
+            for dir in ./*/
+            do
+              env=${dir%*/}
+              env=${env#*/}
+              echo ""
+              echo "========> Terraform Plan <========"
+              echo "At region: ${{ github.head_ref	}}"
+              echo "At workspace: ${env}"
+              echo "=================================="
+
+              terraform workspace select ${env} || terraform workspace new ${env}
+              plan_info="$plan_info\n$(terraform plan -no-color)"
+            done
+          else
+            plan_info="$(terraform plan -no-color)"
+          fi
+
+          plan_info="${plan_info//'%'/'%25'}"
+          plan_info="${plan_info//$'\n'/'%0A'}"
+          plan_info="${plan_info//$'\r'/'%0D'}"
+          echo "::set-output name=plan_info::$plan_info"
+        continue-on-error: true
+
+      - uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${{ steps.plan.outputs.plan_info }}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
