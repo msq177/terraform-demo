@@ -12,9 +12,12 @@ module "network" {
 module "ecs" {
   source = "../../modules/ecs"
 
-  subnet_id          = module.network.subnet_id
-  security_group_ids = [module.network.security_group_id]
-  associate_eip      = true
-  eip_id             = module.network.eip_id
-  image_id           = var.image_id
+  subnet_id            = module.network.subnet_id
+  security_group_ids   = [module.network.security_group_id]
+  associate_eip        = true
+  eip_id               = module.network.eip_id
+  instance_name_prefix = var.instance_name_prefix
+  image_id             = var.image_id
+  instance_type        = var.instance_type
+  password             = var.password
 }
