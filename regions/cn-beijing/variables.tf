@@ -4,7 +4,7 @@ variable "region" {
 }
 
 variable "vpc_name" {
-  default = "tf-demo-vpc"
+  default = "tf-demo-vpc-beijing"
 }
 
 variable "vpc_cidr" {
